@@ -1,0 +1,2449 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Store Manager POS Pro+</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<style>
+:root{
+ --primary:#1e3c72;
+ --accent:#27ae60;
+ --danger:#e74c3c;
+ --warning:#f39c12;
+ --bg:#f5f7fb;
+}
+
+body{
+ background:var(--bg);
+ font-family:Segoe UI,Tahoma,sans-serif;
+}
+
+.navbar-custom{
+ background:linear-gradient(135deg,#1e3c72,#2a5298);
+}
+
+.card-stat{
+ border:0;
+ border-radius:14px;
+ box-shadow:0 4px 15px rgba(0,0,0,.06);
+}
+
+.screen-overlay{
+ position:fixed;
+ inset:0;
+ background:rgba(15,23,42,.96);
+ z-index:9999;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+}
+
+.auth-card{
+ background:#fff;
+ border-radius:18px;
+ padding:28px;
+ width:92%;
+ max-width:460px;
+ box-shadow:0 20px 40px rgba(0,0,0,.3);
+}
+
+.pin-input{
+ letter-spacing:12px;
+ font-size:26px;
+ text-align:center;
+ font-weight:bold;
+}
+
+.thermal-receipt{
+ width:300px;
+ background:#fff;
+ padding:15px;
+ font-family:monospace;
+ font-size:12px;
+ border:1px dashed #ccc;
+ margin:auto;
+}
+
+.item-card{
+ cursor:pointer;
+ transition:.15s;
+}
+
+.item-card:hover{
+ transform:translateY(-2px);
+}
+
+.quick-btn{
+ min-height:72px;
+}
+
+.sticky-tools{
+ position:sticky;
+ top:70px;
+ z-index:10;
+}
+
+@media(max-width:767px){
+ .nav-pills .nav-link{
+  font-size:12px;
+  padding:9px 5px;
+ }
+
+ .container{
+  padding-left:10px;
+  padding-right:10px;
+ }
+
+ .table{
+  font-size:13px;
+ }
+
+ .item-card{
+  min-height:105px;
+ }
+}
+
+@media print{
+ body *{
+  visibility:hidden;
+ }
+
+ #printableReceipt,
+ #printableReceipt *{
+  visibility:visible;
+ }
+
+ #printableReceipt{
+  position:absolute;
+  left:0;
+  top:0;
+  width:100%;
+ }
+}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN / LOCK -->
+<div id="appLockOverlay" class="screen-overlay">
+<div class="auth-card text-center" id="lockCardContent"></div>
+</div>
+
+<!-- NAVBAR -->
+<nav class="navbar navbar-dark navbar-custom sticky-top shadow-sm">
+<div class="container-fluid">
+
+<a class="navbar-brand fw-bold" href="#">
+<i class="fas fa-store me-2"></i>
+<span id="navStoreName">Smart Store POS</span>
+</a>
+
+<div class="d-flex align-items-center gap-2">
+
+<span id="licenseBadge" class="badge bg-success">
+License Active
+</span>
+
+<button class="btn btn-outline-light btn-sm" onclick="lockApp()">
+<i class="fas fa-lock"></i>
+</button>
+
+</div>
+</div>
+</nav>
+
+<div class="container-fluid py-3">
+
+<!-- MAIN TABS -->
+<ul class="nav nav-pills mb-3 nav-justified bg-white p-2 rounded-3 shadow-sm">
+
+<li class="nav-item">
+<button class="nav-link active"
+data-bs-toggle="pill"
+data-bs-target="#tabPos">
+<i class="fas fa-cash-register"></i>
+POS
+</button>
+</li>
+
+<li class="nav-item">
+<button class="nav-link"
+data-bs-toggle="pill"
+data-bs-target="#tabStock">
+<i class="fas fa-boxes"></i>
+Stock
+</button>
+</li>
+
+<li class="nav-item">
+<button class="nav-link"
+data-bs-toggle="pill"
+data-bs-target="#tabReports">
+<i class="fas fa-chart-line"></i>
+Reports
+</button>
+</li>
+
+<li class="nav-item">
+<button class="nav-link"
+data-bs-toggle="pill"
+data-bs-target="#tabSettings">
+<i class="fas fa-cog"></i>
+Settings
+</button>
+</li>
+
+</ul>
+
+<div class="tab-content">
+
+<!-- ================= POS ================= -->
+
+<div class="tab-pane fade show active" id="tabPos">
+
+<div class="row g-3">
+
+<div class="col-lg-7">
+
+<div class="card p-3 border-0 shadow-sm">
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+
+<h5 class="fw-bold m-0">
+භාණ්ඩ සෙවීම
+</h5>
+
+<button class="btn btn-outline-secondary btn-sm"
+onclick="scanBarcode()">
+📷 Scan
+</button>
+
+</div>
+
+<input
+id="posSearch"
+class="form-control form-control-lg mb-3"
+placeholder="නම / Barcode / Code..."
+oninput="filterPosItems()">
+
+<div class="row g-2" id="posItemList"></div>
+
+</div>
+</div>
+
+
+<div class="col-lg-5">
+
+<div class="card p-3 border-0 shadow-sm sticky-tools">
+
+<h5 class="fw-bold">
+වත්මන් බිල්පත
+</h5>
+
+<div class="small text-muted mb-2">
+Customer:
+<span id="cartCustomer">Walk-in</span>
+</div>
+
+<div class="table-responsive"
+style="max-height:300px">
+
+<table class="table table-sm">
+
+<thead>
+<tr>
+<th>භාණ්ඩය</th>
+<th>Qty</th>
+<th>මිල</th>
+<th></th>
+</tr>
+</thead>
+
+<tbody id="cartTableBody"></tbody>
+
+</table>
+
+</div>
+
+<div class="d-flex justify-content-between">
+
+<span>Subtotal</span>
+
+<b>
+Rs.
+<span id="cartSubtotal">0.00</span>
+</b>
+
+</div>
+
+<div class="input-group input-group-sm my-2">
+
+<span class="input-group-text">
+Discount
+</span>
+
+<input
+id="cartDiscount"
+type="number"
+class="form-control"
+value="0"
+min="0"
+oninput="renderCart()">
+
+<span class="input-group-text">
+Rs.
+</span>
+
+</div>
+
+<div class="d-flex justify-content-between h4 text-success">
+
+<span>Total</span>
+
+<b>
+Rs.
+<span id="cartTotal">0.00</span>
+</b>
+
+</div>
+
+<div class="d-grid gap-2">
+
+<button
+class="btn btn-success btn-lg"
+onclick="checkout()">
+
+<i class="fas fa-receipt"></i>
+Checkout
+
+</button>
+
+<button
+class="btn btn-outline-primary"
+onclick="customerPrompt()">
+
+<i class="fas fa-user"></i>
+Customer
+
+</button>
+
+<button
+class="btn btn-outline-danger btn-sm"
+onclick="clearCart()">
+
+Clear Cart
+
+</button>
+
+</div>
+
+</div>
+</div>
+
+</div>
+</div>
+
+
+<!-- ================= STOCK ================= -->
+
+<div class="tab-pane fade" id="tabStock">
+
+<div class="card p-3 border-0 shadow-sm">
+
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+
+<h5 class="fw-bold m-0">
+තොග කළමනාකරණය
+</h5>
+
+<div>
+
+<button
+class="btn btn-primary"
+onclick="showAddItemModal()">
++ භාණ්ඩ
+</button>
+
+<button
+class="btn btn-outline-success ms-1"
+onclick="stockImport()">
+Import
+</button>
+
+</div>
+</div>
+
+<input
+id="stockSearch"
+class="form-control my-3"
+placeholder="Stock search..."
+oninput="renderStock()">
+
+<div class="table-responsive">
+
+<table class="table table-hover align-middle">
+
+<thead class="table-dark">
+
+<tr>
+<th>Code</th>
+<th>භාණ්ඩය</th>
+<th>Cost</th>
+<th>Price</th>
+<th>Qty</th>
+<th>Status</th>
+<th>Actions</th>
+</tr>
+
+</thead>
+
+<tbody id="stockTableBody"></tbody>
+
+</table>
+
+</div>
+
+</div>
+</div>
+
+
+<!-- ================= REPORTS ================= -->
+
+<div class="tab-pane fade" id="tabReports">
+
+<div class="row g-3 mb-3">
+
+<div class="col-6 col-lg-3">
+
+<div class="card card-stat p-3">
+
+<small>අද Sales</small>
+
+<h4>
+Rs.
+<span id="repTodaySales">0</span>
+</h4>
+
+</div>
+</div>
+
+
+<div class="col-6 col-lg-3">
+
+<div class="card card-stat p-3">
+
+<small>අද Profit</small>
+
+<h4>
+Rs.
+<span id="repTodayProfit">0</span>
+</h4>
+
+</div>
+</div>
+
+
+<div class="col-6 col-lg-3">
+
+<div class="card card-stat p-3">
+
+<small>Low Stock</small>
+
+<h4 id="repLowStockCount">
+0
+</h4>
+
+</div>
+</div>
+
+
+<div class="col-6 col-lg-3">
+
+<div class="card card-stat p-3">
+
+<small>Total Sales</small>
+
+<h4 id="repTotalSales">
+0
+</h4>
+
+</div>
+</div>
+
+</div>
+
+
+<div class="card p-3 border-0 shadow-sm">
+
+<div class="d-flex justify-content-between">
+
+<h5>
+විකුණුම් ඉතිහාසය
+</h5>
+
+<button
+class="btn btn-sm btn-outline-danger"
+onclick="clearSales()">
+Clear History
+</button>
+
+</div>
+
+<div class="table-responsive">
+
+<table class="table table-striped">
+
+<thead>
+
+<tr>
+<th>Invoice</th>
+<th>Time</th>
+<th>Total</th>
+<th>Profit</th>
+<th>Action</th>
+</tr>
+
+</thead>
+
+<tbody id="salesHistoryBody"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+
+<!-- ================= SETTINGS ================= -->
+
+<div class="tab-pane fade" id="tabSettings">
+
+<div class="row g-3">
+
+<div class="col-lg-6">
+
+<div class="card p-3 border-0 shadow-sm">
+
+<h5>
+ආයතන විස්තර & PIN
+</h5>
+
+<form onsubmit="saveSettings(event)">
+
+<input
+id="setStoreName"
+class="form-control mb-2"
+placeholder="Shop name"
+required>
+
+<input
+id="setStorePhone"
+class="form-control mb-2"
+placeholder="Phone">
+
+<input
+id="setStoreAddress"
+class="form-control mb-2"
+placeholder="Address">
+
+<input
+id="setUsername"
+class="form-control mb-2"
+placeholder="Username"
+required>
+
+<input
+id="setUserPin"
+type="password"
+maxlength="4"
+class="form-control mb-2"
+placeholder="New 4-digit PIN">
+
+<button class="btn btn-primary w-100">
+Save Settings
+</button>
+
+</form>
+
+</div>
+</div>
+
+
+<div class="col-lg-6">
+
+<div class="card p-3 border-0 shadow-sm mb-3">
+
+<h5>
+License
+</h5>
+
+<p>
+Device Key:
+<b id="dispDeviceKey">...</b>
+</p>
+
+<p>
+Status:
+<b id="dispLicenseStatus">ACTIVE</b>
+</p>
+
+<p>
+Expiry:
+<b id="dispExpiryDate">...</b>
+</p>
+
+<button
+class="btn btn-outline-primary"
+onclick="promptRenewalKey()">
+Renew License
+</button>
+
+<button
+class="btn btn-outline-secondary ms-1"
+onclick="showMasterAdminLogin()">
+Developer Portal
+</button>
+
+</div>
+
+
+<div class="card p-3 border-0 shadow-sm">
+
+<h5>
+Backup & Restore
+</h5>
+
+<button
+class="btn btn-success mb-2"
+onclick="exportData()">
+Download Backup
+</button>
+
+<input
+type="file"
+id="importFile"
+class="d-none"
+accept=".json"
+onchange="importData(event)">
+
+<button
+class="btn btn-outline-secondary"
+onclick="document.getElementById('importFile').click()">
+Restore Backup
+</button>
+
+<button
+class="btn btn-outline-danger ms-1"
+onclick="resetApp()">
+Reset App
+</button>
+
+</div>
+
+</div>
+</div>
+
+</div>
+</div>
+</div>
+
+
+<!-- ================= ITEM MODAL ================= -->
+
+<div class="modal fade" id="itemModal">
+
+<div class="modal-dialog">
+
+<div class="modal-content">
+
+<form id="itemForm">
+
+<div class="modal-header">
+
+<h5 id="itemModalTitle">
+භාණ්ඩයක් එකතු කරන්න
+</h5>
+
+<button
+class="btn-close"
+data-bs-dismiss="modal">
+</button>
+
+</div>
+
+<div class="modal-body">
+
+<input
+type="hidden"
+id="itemId">
+
+<input
+id="itemCode"
+class="form-control mb-2"
+placeholder="Barcode / Code"
+required>
+
+<input
+id="itemName"
+class="form-control mb-2"
+placeholder="භාණ්ඩයේ නම"
+required>
+
+<div class="row">
+
+<div class="col-6">
+
+<input
+id="itemCost"
+type="number"
+step=".01"
+class="form-control mb-2"
+placeholder="Cost"
+required>
+
+</div>
+
+<div class="col-6">
+
+<input
+id="itemPrice"
+type="number"
+step=".01"
+class="form-control mb-2"
+placeholder="Selling price"
+required>
+
+</div>
+
+</div>
+
+<div class="row">
+
+<div class="col-6">
+
+<input
+id="itemQty"
+type="number"
+class="form-control mb-2"
+placeholder="Qty"
+required>
+
+</div>
+
+<div class="col-6">
+
+<input
+id="itemMin"
+type="number"
+class="form-control mb-2"
+value="5"
+placeholder="Low limit"
+required>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="modal-footer">
+
+<button class="btn btn-primary w-100">
+Save
+</button>
+
+</div>
+
+</form>
+</div>
+</div>
+</div>
+
+
+<!-- ================= RECEIPT ================= -->
+
+<div class="modal fade" id="receiptModal">
+
+<div class="modal-dialog">
+
+<div class="modal-content">
+
+<div class="modal-header">
+
+<h5>
+බිල්පත
+</h5>
+
+<button
+class="btn-close"
+data-bs-dismiss="modal">
+</button>
+
+</div>
+
+<div class="modal-body text-center">
+
+<div
+id="printableReceipt"
+class="thermal-receipt">
+</div>
+
+</div>
+
+<div class="modal-footer">
+
+<button
+class="btn btn-success"
+onclick="shareWhatsApp()">
+WhatsApp
+</button>
+
+<button
+class="btn btn-primary"
+onclick="window.print()">
+Print
+</button>
+
+</div>
+
+</div>
+</div>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+
+/* =========================
+   SYSTEM
+========================= */
+
+const MASTER_DEV_PIN="9988";
+
+let config=
+JSON.parse(localStorage.getItem("sys_config"))||
+{
+ initialized:false,
+ storeName:"My Smart Shop",
+ storePhone:"",
+ storeAddress:"Sri Lanka",
+ username:"",
+ pin:"",
+ deviceKey:generateDeviceKey(),
+ licenseStatus:"ACTIVE",
+ expiryDate:getFutureDate(30),
+ developerWhatsApp:"94707602670"
+};
+
+let items=
+JSON.parse(localStorage.getItem("sys_items"))||
+[
+ {
+  id:1,
+  code:"101",
+  name:"සීනි 1kg",
+  cost:240,
+  price:280,
+  qty:50,
+  min:10
+ },
+ {
+  id:2,
+  code:"102",
+  name:"පරිප්පු 1kg",
+  cost:290,
+  price:340,
+  qty:40,
+  min:10
+ }
+];
+
+let sales=
+JSON.parse(localStorage.getItem("sys_sales"))||
+[];
+
+let cart=[];
+let customer="Walk-in";
+
+
+/* =========================
+   SAVE
+========================= */
+
+function saveState(){
+
+ localStorage.setItem(
+  "sys_config",
+  JSON.stringify(config)
+ );
+
+ localStorage.setItem(
+  "sys_items",
+  JSON.stringify(items)
+ );
+
+ localStorage.setItem(
+  "sys_sales",
+  JSON.stringify(sales)
+}
+
+
+/* =========================
+   DEVICE KEY
+========================= */
+
+function generateDeviceKey(){
+
+ return "DEV-"+
+ Math.random()
+ .toString(36)
+ .substring(2,8)
+ .toUpperCase();
+
+}
+
+
+/* =========================
+   DATE
+========================= */
+
+function getFutureDate(days){
+
+ let d=new Date();
+
+ d.setDate(
+  d.getDate()+days
+ );
+
+ return d
+ .toISOString()
+ .split("T")[0];
+}
+
+
+/* =========================
+   START
+========================= */
+
+window.onload=()=>{
+
+ checkLicenseAndAuth();
+
+ renderAll();
+
+};
+
+
+/* =========================
+   LOGIN
+========================= */
+
+function checkLicenseAndAuth(){
+
+ let overlay=
+ document.getElementById("appLockOverlay");
+
+ let content=
+ document.getElementById("lockCardContent");
+
+ let today=
+ new Date()
+ .toISOString()
+ .split("T")[0];
+
+
+ if(!config.initialized){
+
+  overlay.style.display="flex";
+
+  content.innerHTML=`
+
+  <h4>
+  ඇප් එක සකස් කිරීම
+  </h4>
+
+  <p>
+  කඩයේ නම, username සහ PIN සාදාගන්න.
+  </p>
+
+  <form onsubmit="completeSetup(event)">
+
+  <input
+  id="setupStore"
+  class="form-control mb-2"
+  placeholder="Shop name"
+  required>
+
+  <input
+  id="setupUser"
+  class="form-control mb-2"
+  placeholder="Username"
+  required>
+
+  <input
+  id="setupPin"
+  class="form-control pin-input mb-3"
+  maxlength="4"
+  type="password"
+  placeholder="****"
+  required>
+
+  <button
+  class="btn btn-primary w-100">
+  ආරම්භ කරන්න
+  </button>
+
+  </form>
+
+  `;
+
+  return;
+ }
+
+
+ if(
+  config.licenseStatus==="SUSPENDED" ||
+  config.expiryDate<today
+ ){
+
+  overlay.style.display="flex";
+
+  content.innerHTML=`
+
+  <div class="text-danger">
+  <i class="fas fa-triangle-exclamation fa-3x"></i>
+  </div>
+
+  <h4>
+  License අවසන්
+  </h4>
+
+  <p>
+  Device Key:
+  <b>${config.deviceKey}</b>
+  </p>
+
+  <a
+  class="btn btn-success w-100 mb-2"
+  target="_blank"
+  href="https://wa.me/${config.developerWhatsApp}?text=Renew%20${config.deviceKey}">
+  Developer WhatsApp
+  </a>
+
+  <button
+  class="btn btn-outline-secondary w-100"
+  onclick="showMasterAdminLogin()">
+  Developer Portal
+  </button>
+
+  `;
+
+  return;
+ }
+
+
+ if(
+  sessionStorage.getItem("sys_unlocked")
+  !=="true"
+ ){
+
+  overlay.style.display="flex";
+
+  content.innerHTML=`
+
+  <div class="text-primary">
+  <i class="fas fa-lock fa-3x"></i>
+  </div>
+
+  <h4>
+  ${config.storeName}
+  </h4>
+
+  <p>
+  ආයුබෝවන් ${config.username}
+  </p>
+
+  <form onsubmit="unlockApp(event)">
+
+  <input
+  id="unlockPinInput"
+  class="form-control pin-input mb-3"
+  maxlength="4"
+  type="password"
+  autofocus
+  required>
+
+  <button
+  class="btn btn-primary w-100">
+  Unlock
+  </button>
+
+  </form>
+
+  `;
+
+  return;
+ }
+
+ overlay.style.display="none";
+}
+
+
+/* =========================
+   SETUP
+========================= */
+
+function completeSetup(e){
+
+ e.preventDefault();
+
+ config.storeName=
+ document.getElementById("setupStore").value;
+
+ config.username=
+ document.getElementById("setupUser").value;
+
+ config.pin=
+ document.getElementById("setupPin").value;
+
+ config.initialized=true;
+
+ saveState();
+
+ sessionStorage.setItem(
+  "sys_unlocked",
+  "true"
+ );
+
+ renderAll();
+
+ checkLicenseAndAuth();
+
+}
+
+
+/* =========================
+   UNLOCK
+========================= */
+
+function unlockApp(e){
+
+ e.preventDefault();
+
+ let pin=
+ document.getElementById("unlockPinInput").value;
+
+ if(
+  pin===config.pin ||
+  pin===MASTER_DEV_PIN
+ ){
+
+  sessionStorage.setItem(
+   "sys_unlocked",
+   "true"
+  );
+
+  checkLicenseAndAuth();
+
+ }else{
+
+  alert("වැරදි PIN!");
+
+ }
+
+}
+
+
+/* =========================
+   LOCK
+========================= */
+
+function lockApp(){
+
+ sessionStorage.removeItem(
+  "sys_unlocked"
+ );
+
+ checkLicenseAndAuth();
+
+}
+
+
+/* =========================
+   DEVELOPER
+========================= */
+
+function showMasterAdminLogin(){
+
+ let p=
+ prompt("Developer PIN:");
+
+ if(p!==MASTER_DEV_PIN){
+
+  alert("අවසර නැත");
+
+  return;
+ }
+
+ let a=
+ prompt(
+ `1 = Days add
+2 = Activate
+3 = Suspend`
+ );
+
+ if(a==="1"){
+
+  let d=
+  parseInt(
+   prompt("Days","30")
+  );
+
+  if(d){
+
+   config.expiryDate=
+   getFutureDate(d);
+
+   config.licenseStatus=
+   "ACTIVE";
+
+  }
+
+ }else if(a==="2"){
+
+  config.licenseStatus=
+  "ACTIVE";
+
+  config.expiryDate=
+  getFutureDate(365);
+
+ }else if(a==="3"){
+
+  config.licenseStatus=
+  "SUSPENDED";
+
+ }
+
+ saveState();
+
+ location.reload();
+
+}
+
+
+/* =========================
+   RENDER ALL
+========================= */
+
+function renderAll(){
+
+ document.getElementById(
+  "navStoreName"
+ ).innerText=config.storeName;
+
+ document.getElementById(
+  "dispDeviceKey"
+ ).innerText=config.deviceKey;
+
+ document.getElementById(
+  "dispLicenseStatus"
+ ).innerText=
+ config.licenseStatus;
+
+ document.getElementById(
+  "dispExpiryDate"
+ ).innerText=
+ config.expiryDate||"N/A";
+
+ document.getElementById(
+  "setStoreName"
+ ).value=config.storeName;
+
+ document.getElementById(
+  "setStorePhone"
+ ).value=config.storePhone;
+
+ document.getElementById(
+  "setStoreAddress"
+ ).value=config.storeAddress;
+
+ document.getElementById(
+  "setUsername"
+ ).value=config.username;
+
+ renderPosItems();
+
+ renderCart();
+
+ renderStock();
+
+ renderReports();
+
+}
+
+
+/* =========================
+   POS PRODUCTS
+========================= */
+
+function renderPosItems(list=items){
+
+ document.getElementById(
+  "posItemList"
+ ).innerHTML=
+
+ list.map(it=>`
+
+ <div class="col-6 col-md-4">
+
+ <div
+ class="card item-card p-2 text-center h-100"
+ onclick="addToCart(${it.id})">
+
+ <b>
+ ${it.name}
+ </b>
+
+ <small class="text-muted">
+ ${it.code} |
+ Stock ${it.qty}
+ </small>
+
+ <span class="text-success fw-bold">
+ Rs.${it.price.toFixed(2)}
+ </span>
+
+ </div>
+
+ </div>
+
+ `).join("");
+
+}
+
+
+/* =========================
+   SEARCH
+========================= */
+
+function filterPosItems(){
+
+ let q=
+ document.getElementById(
+  "posSearch"
+ ).value.toLowerCase();
+
+ renderPosItems(
+  items.filter(i=>
+   i.name.toLowerCase().includes(q) ||
+   i.code.toLowerCase().includes(q)
+  )
+ );
+
+}
+
+
+/* =========================
+   ADD CART
+========================= */
+
+function addToCart(id){
+
+ let it=
+ items.find(i=>i.id===id);
+
+ if(!it || it.qty<=0){
+
+  alert("තොගයේ නැත!");
+
+  return;
+ }
+
+ let c=
+ cart.find(x=>x.id===id);
+
+ if(c){
+
+  if(c.qty<it.qty){
+
+   c.qty++;
+
+  }
+
+ }else{
+
+  cart.push({
+
+   id:it.id,
+   name:it.name,
+   price:it.price,
+   cost:it.cost,
+   qty:1,
+   maxQty:it.qty
+
+  });
+
+ }
+
+ renderCart();
+
+}
+
+
+/* =========================
+   CART
+========================= */
+
+function renderCart(){
+
+ let total=0;
+
+ document.getElementById(
+  "cartTableBody"
+ ).innerHTML=
+
+ cart.map((c,i)=>{
+
+  let sub=
+  c.price*c.qty;
+
+  total+=sub;
+
+  return `
+
+  <tr>
+
+  <td>
+  ${c.name}
+  </td>
+
+  <td>
+
+  <input
+  style="width:65px"
+  type="number"
+  min="1"
+  max="${c.maxQty}"
+  value="${c.qty}"
+  onchange="updateCartQty(${i},this.value)"
+  class="form-control form-control-sm">
+
+  </td>
+
+  <td>
+  ${sub.toFixed(2)}
+  </td>
+
+  <td>
+
+  <button
+  class="btn btn-sm text-danger"
+  onclick="removeCart(${i})">
+  ×
+  </button>
+
+  </td>
+
+  </tr>
+
+  `;
+
+ }).join("");
+
+ document.getElementById(
+  "cartSubtotal"
+ ).innerText=
+ total.toFixed(2);
+
+ let discount=
+ Math.min(
+  Number(
+   document.getElementById(
+    "cartDiscount"
+   ).value||0
+  ),
+  total
+ );
+
+ document.getElementById(
+  "cartTotal"
+ ).innerText=
+ (total-discount).toFixed(2);
+
+ document.getElementById(
+  "cartCustomer"
+ ).innerText=
+ customer;
+
+}
+
+
+/* =========================
+   CART QUANTITY
+========================= */
+
+function updateCartQty(i,v){
+
+ cart[i].qty=
+ Math.max(
+  1,
+  Math.min(
+   parseInt(v)||1,
+   cart[i].maxQty
+  )
+ );
+
+ renderCart();
+
+}
+
+
+/* =========================
+   REMOVE
+========================= */
+
+function removeCart(i){
+
+ cart.splice(i,1);
+
+ renderCart();
+
+}
+
+
+/* =========================
+   CLEAR
+========================= */
+
+function clearCart(){
+
+ cart=[];
+
+ customer="Walk-in";
+
+ renderCart();
+
+}
+
+
+/* =========================
+   CUSTOMER
+========================= */
+
+function customerPrompt(){
+
+ let n=
+ prompt(
+  "Customer name:",
+  customer
+ );
+
+ if(n){
+
+  customer=n;
+
+  renderCart();
+
+ }
+
+}
+
+
+/* =========================
+   CHECKOUT
+========================= */
+
+function checkout(){
+
+ if(!cart.length){
+
+  alert("Cart හිස්ය!");
+
+  return;
+ }
+
+ let subtotal=
+ cart.reduce(
+  (s,i)=>
+  s+i.price*i.qty,
+  0
+ );
+
+ let discount=
+ Math.min(
+  Number(
+   document.getElementById(
+    "cartDiscount"
+   ).value||0
+  ),
+  subtotal
+ );
+
+ let total=
+ subtotal-discount;
+
+ let cost=
+ cart.reduce(
+  (s,i)=>
+  s+i.cost*i.qty,
+  0
+ );
+
+ let sale={
+
+  id:
+  "INV-"+
+  Date.now()
+  .toString()
+  .slice(-7),
+
+  time:
+  new Date()
+  .toLocaleString(),
+
+  customer,
+
+  items:
+  JSON.parse(
+   JSON.stringify(cart)
+  ),
+
+  subtotal,
+
+  discount,
+
+  total,
+
+  profit:
+  total-cost
+
+ };
+
+ cart.forEach(c=>{
+
+  let it=
+  items.find(
+   i=>i.id===c.id
+  );
+
+  if(it){
+
+   it.qty-=c.qty;
+
+  }
+
+ });
+
+ sales.unshift(sale);
+
+ saveState();
+
+ renderThermalReceipt(sale);
+
+ new bootstrap.Modal(
+  document.getElementById(
+   "receiptModal"
+  )
+ ).show();
+
+ clearCart();
+
+ renderAll();
+
+}
+
+
+/* =========================
+   RECEIPT
+========================= */
+
+function renderThermalReceipt(s){
+
+ document.getElementById(
+  "printableReceipt"
+ ).innerHTML=
+
+ `
+
+ <h5>
+ ${config.storeName}
+ </h5>
+
+ <p>
+ ${config.storeAddress}
+ <br>
+ ${config.storePhone}
+ </p>
+
+ <hr>
+
+ <div>
+ Invoice: ${s.id}
+ <br>
+ Customer: ${s.customer}
+ <br>
+ ${s.time}
+ </div>
+
+ <hr>
+
+ ${s.items.map(i=>`
+
+ <div class="d-flex justify-content-between">
+
+ <span>
+ ${i.name} x${i.qty}
+ </span>
+
+ <span>
+ ${(i.price*i.qty).toFixed(2)}
+ </span>
+
+ </div>
+
+ `).join("")}
+
+ <hr>
+
+ <div class="d-flex justify-content-between">
+
+ <span>
+ Subtotal
+ </span>
+
+ <b>
+ ${s.subtotal.toFixed(2)}
+ </b>
+
+ </div>
+
+ <div class="d-flex justify-content-between">
+
+ <span>
+ Discount
+ </span>
+
+ <b>
+ ${s.discount.toFixed(2)}
+ </b>
+
+ </div>
+
+ <div class="d-flex justify-content-between">
+
+ <b>
+ TOTAL
+ </b>
+
+ <b>
+ Rs.${s.total.toFixed(2)}
+ </b>
+
+ </div>
+
+ <hr>
+
+ <p>
+ ස්තූතියි! නැවත පැමිණෙන්න!
+ </p>
+
+ `;
+
+}
+
+
+/* =========================
+   WHATSAPP
+========================= */
+
+function shareWhatsApp(){
+
+ let text=
+ document.getElementById(
+  "printableReceipt"
+ ).innerText;
+
+ window.open(
+  "https://wa.me/?text="+
+  encodeURIComponent(text),
+  "_blank"
+ );
+
+}
+
+
+/* =========================
+   STOCK
+========================= */
+
+function renderStock(){
+
+ let q=
+ (
+  document.getElementById(
+   "stockSearch"
+  )?.value||""
+ ).toLowerCase();
+
+ document.getElementById(
+  "stockTableBody"
+ ).innerHTML=
+
+ items
+ .filter(i=>
+  i.name
+  .toLowerCase()
+  .includes(q) ||
+
+  i.code
+  .toLowerCase()
+  .includes(q)
+ )
+ .map(i=>`
+
+ <tr>
+
+ <td>
+ ${i.code}
+ </td>
+
+ <td>
+ <b>${i.name}</b>
+ </td>
+
+ <td>
+ Rs.${i.cost.toFixed(2)}
+ </td>
+
+ <td>
+ Rs.${i.price.toFixed(2)}
+ </td>
+
+ <td>
+ ${i.qty}
+ </td>
+
+ <td>
+
+ <span
+ class="badge ${
+  i.qty<=i.min
+  ?"bg-danger"
+  :"bg-success"
+ }">
+
+ ${
+  i.qty<=i.min
+  ?"Low"
+  :"OK"
+ }
+
+ </span>
+
+ </td>
+
+ <td>
+
+ <button
+ class="btn btn-sm btn-outline-primary"
+ onclick="editItem(${i.id})">
+ Edit
+ </button>
+
+ <button
+ class="btn btn-sm btn-outline-danger"
+ onclick="deleteItem(${i.id})">
+ Delete
+ </button>
+
+ </td>
+
+ </tr>
+
+ `).join("");
+
+}
+
+
+/* =========================
+   ADD ITEM
+========================= */
+
+function showAddItemModal(){
+
+ document.getElementById(
+  "itemForm"
+ ).reset();
+
+ document.getElementById(
+  "itemId"
+ ).value="";
+
+ document.getElementById(
+  "itemModalTitle"
+ ).innerText=
+ "අලුත් භාණ්ඩයක්";
+
+ new bootstrap.Modal(
+  document.getElementById(
+   "itemModal"
+  )
+ ).show();
+
+}
+
+
+/* =========================
+   SAVE ITEM
+========================= */
+
+document.getElementById(
+ "itemForm"
+).onsubmit=e=>{
+
+ e.preventDefault();
+
+ let id=
+ document.getElementById(
+  "itemId"
+ ).value
+ ?
+ parseInt(
+  document.getElementById(
+   "itemId"
+  ).value
+ )
+ :
+ Date.now();
+
+ let n={
+
+  id,
+
+  code:
+  document.getElementById(
+   "itemCode"
+  ).value.trim(),
+
+  name:
+  document.getElementById(
+   "itemName"
+  ).value.trim(),
+
+  cost:
+  Number(
+   document.getElementById(
+    "itemCost"
+   ).value
+  ),
+
+  price:
+  Number(
+   document.getElementById(
+    "itemPrice"
+   ).value
+  ),
+
+  qty:
+  Number(
+   document.getElementById(
+    "itemQty"
+   ).value
+  ),
+
+  min:
+  Number(
+   document.getElementById(
+    "itemMin"
+   ).value
+  )
+
+ };
+
+ let idx=
+ items.findIndex(
+  x=>x.id===id
+ );
+
+ if(idx>=0){
+
+  items[idx]=n;
+
+ }else{
+
+  items.push(n);
+
+ }
+
+ saveState();
+
+ bootstrap.Modal
+ .getInstance(
+  document.getElementById(
+   "itemModal"
+  )
+ )
+ .hide();
+
+ renderAll();
+
+};
+
+
+/* =========================
+   EDIT ITEM
+========================= */
+
+function editItem(id){
+
+ let i=
+ items.find(
+  x=>x.id===id
+ );
+
+ document.getElementById(
+  "itemId"
+ ).value=i.id;
+
+ document.getElementById(
+  "itemCode"
+ ).value=i.code;
+
+ document.getElementById(
+  "itemName"
+ ).value=i.name;
+
+ document.getElementById(
+  "itemCost"
+ ).value=i.cost;
+
+ document.getElementById(
+  "itemPrice"
+ ).value=i.price;
+
+ document.getElementById(
+  "itemQty"
+ ).value=i.qty;
+
+ document.getElementById(
+  "itemMin"
+ ).value=i.min;
+
+ document.getElementById(
+  "itemModalTitle"
+ ).innerText=
+ "භාණ්ඩය වෙනස් කරන්න";
+
+ new bootstrap.Modal(
+  document.getElementById(
+   "itemModal"
+  )
+ ).show();
+
+}
+
+
+/* =========================
+   DELETE ITEM
+========================= */
+
+function deleteItem(id){
+
+ if(
+  confirm(
+   "මෙම භාණ්ඩය ඉවත් කරන්නද?"
+  )
+ ){
+
+  items=
+  items.filter(
+   i=>i.id!==id
+  );
+
+  saveState();
+
+  renderAll();
+
+ }
+
+}
+
+
+/* =========================
+   REPORTS
+========================= */
+
+function renderReports(){
+
+ let today=
+ new Date()
+ .toLocaleDateString();
+
+ let td=
+ sales.filter(
+  s=>
+  new Date(
+   s.time
+  ).toLocaleDateString()
+  ===today
+ );
+
+ let ts=
+ td.reduce(
+  (a,s)=>a+s.total,
+  0
+ );
+
+ let tp=
+ td.reduce(
+  (a,s)=>a+s.profit,
+  0
+ );
+
+ document.getElementById(
+  "repTodaySales"
+ ).innerText=
+ ts.toFixed(2);
+
+ document.getElementById(
+  "repTodayProfit"
+ ).innerText=
+ tp.toFixed(2);
+
+ document.getElementById(
+  "repLowStockCount"
+ ).innerText=
+ items.filter(
+  i=>i.qty<=i.min
+ ).length;
+
+ document.getElementById(
+  "repTotalSales"
+ ).innerText=
+ sales.length;
+
+ document.getElementById(
+  "salesHistoryBody"
+ ).innerHTML=
+
+ sales.map(s=>`
+
+ <tr>
+
+ <td>
+ ${s.id}
+ </td>
+
+ <td>
+ ${s.time}
+ </td>
+
+ <td>
+ Rs.${s.total.toFixed(2)}
+ </td>
+
+ <td>
+ Rs.${s.profit.toFixed(2)}
+ </td>
+
+ <td>
+
+ <button
+ class="btn btn-sm btn-info"
+ onclick='
+ renderThermalReceipt(${JSON.stringify(s)});
+ new bootstrap.Modal(
+  document.getElementById("receiptModal")
+ ).show();
+ '>
+ Bill
+ </button>
+
+ </td>
+
+ </tr>
+
+ `).join("");
+
+}
+
+
+/* =========================
+   SETTINGS
+========================= */
+
+function saveSettings(e){
+
+ e.preventDefault();
+
+ config.storeName=
+ document.getElementById(
+  "setStoreName"
+ ).value;
+
+ config.storePhone=
+ document.getElementById(
+  "setStorePhone"
+ ).value;
+
+ config.storeAddress=
+ document.getElementById(
+  "setStoreAddress"
+ ).value;
+
+ config.username=
+ document.getElementById(
+  "setUsername"
+ ).value;
+
+ let p=
+ document.getElementById(
+  "setUserPin"
+ ).value;
+
+ if(p.length===4){
+
+  config.pin=p;
+
+ }
+
+ saveState();
+
+ renderAll();
+
+ alert(
+  "සුරකින ලදී"
+ );
+
+}
+
+
+/* =========================
+   LICENSE RENEW
+========================= */
+
+function promptRenewalKey(){
+
+ let k=
+ prompt(
+  "Renew code:"
+ );
+
+ if(k){
+
+  config.expiryDate=
+  getFutureDate(30);
+
+  config.licenseStatus=
+  "ACTIVE";
+
+  saveState();
+
+  renderAll();
+
+  alert(
+   "License activated"
+  );
+
+ }
+
+}
+
+
+/* =========================
+   BACKUP
+========================= */
+
+function exportData(){
+
+ let data={
+  config,
+  items,
+  sales
+ };
+
+ let a=
+ document.createElement("a");
+
+ a.href=
+ "data:application/json;charset=utf-8,"+
+ encodeURIComponent(
+  JSON.stringify(
+   data,
+   null,
+   2
+  )
+ );
+
+ a.download=
+ "POS_Backup_"+
+ new Date()
+ .toISOString()
+ .slice(0,10)+
+ ".json";
+
+ a.click();
+
+}
+
+
+/* =========================
+   RESTORE
+========================= */
+
+function importData(e){
+
+ let f=
+ e.target.files[0];
+
+ if(!f)return;
+
+ let r=
+ new FileReader();
+
+ r.onload=()=>{
+
+  try{
+
+   let d=
+   JSON.parse(
+    r.result
+   );
+
+   if(d.config)
+   config=d.config;
+
+   if(d.items)
+   items=d.items;
+
+   if(d.sales)
+   sales=d.sales;
+
+   saveState();
+
+   renderAll();
+
+   alert(
+    "Restore සාර්ථකයි"
+   );
+
+  }catch(x){
+
+   alert(
+    "Backup file එක වැරදියි"
+   );
+
+  }
+
+ };
+
+ r.readAsText(f);
+
+}
+
+
+/* =========================
+   CLEAR SALES
+========================= */
+
+function clearSales(){
+
+ if(
+  confirm(
+   "සියලු sales history මකන්නද?"
+  )
+ ){
+
+  sales=[];
+
+  saveState();
+
+  renderReports();
+
+ }
+
+}
+
+
+/* =========================
+   RESET
+========================= */
+
+function resetApp(){
+
+ if(
+  confirm(
+   "සියලුම app data මකන්නද?"
+  )
+ ){
+
+  localStorage.clear();
+
+  sessionStorage.clear();
+
+  location.reload();
+
+ }
+
+}
+
+
+/* =========================
+   BARCODE SEARCH
+========================= */
+
+function scanBarcode(){
+
+ let code=
+ prompt(
+  "Barcode / Code එක ඇතුළත් කරන්න:"
+ );
+
+ if(code){
+
+  let i=
+  items.find(
+   x=>x.code===code
+  );
+
+  if(i){
+
+   addToCart(i.id);
+
+  }else{
+
+   alert(
+    "භාණ්ඩය හමු නොවීය"
+   );
+
+  }
+
+ }
+
+}
+
+
+/* =========================
+   STOCK IMPORT
+========================= */
+
+function stockImport(){
+
+ alert(
+  "Stock Import සඳහා CSV/Excel version එක පසුව එක් කළ හැක."
+ );
+
+}
+
+</script>
+
+</body>
+</html>
